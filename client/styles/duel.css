@@ -60,3 +60,15 @@ span.username {
     justify-content: flex-end;
     white-space: nowrap;
 }
+
+.duel-winner {
+    color: green;
+}
+
+.duel-loser {
+    color : red;
+}
+
+.overall-winner {
+    border: 2px solid green;
+}

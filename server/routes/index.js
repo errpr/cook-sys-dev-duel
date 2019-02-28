@@ -75,7 +75,7 @@ function popularTitle (ghUser) {
 function customTitle (ghUserRepos) {
   const repoCount = ghUserRepos.count
   const licensedRepos = ghUserRepos.filter(repo => !!repo.license).count
-  return licensedRepos > repoCount / 2 ? 'Legalize It' : null
+  return licensedRepos >= repoCount / 2 ? 'Legalize It' : null
 }
 
 function computeTitles (ghUser, ghUserRepos) {
@@ -89,35 +89,94 @@ function computeTitles (ghUser, ghUserRepos) {
   ].filter(title => !!title)
 }
 
-function transformGithubUser (ghUser, ghUserRepos) {
+function nonNullOrEmptyString (anything) {
+  return anything === null ? '' : anything
+}
+
+function noReposUser (ghUser) {
   return {
-    name: ghUser.name,
-    location: ghUser.location,
-    bio: ghUser.bio,
-    avatar_url: ghUser.avatar_url,
-    titles: computeTitles(ghUser, ghUserRepos),
-    fav_language: computeFavLanguage(ghUserRepos),
-    public_repos: ghUser.public_repos,
-    total_stars: computeTotalStars(ghUserRepos),
-    highest_stars: computeHighestStars(ghUserRepos),
-    perfect_projects: computePerfectRepos(ghUserRepos),
-    followers: ghUser.followers,
-    following: ghUser.following
+    username: nonNullOrEmptyString(ghUser.login),
+    name: nonNullOrEmptyString(ghUser.name),
+    location: nonNullOrEmptyString(ghUser.location),
+    bio: nonNullOrEmptyString(ghUser.bio),
+    'avatar-url': nonNullOrEmptyString(ghUser.avatar_url),
+    titles: [],
+    'favorite-language': '',
+    'public-repos': 0,
+    'total-stars': 0,
+    'most-starred': 0,
+    'perfect-repos': 0,
+    followers: nonNullOrEmptyString(ghUser.followers),
+    following: nonNullOrEmptyString(ghUser.following)
   }
 }
 
-function requestUserData (username) {
+function transformGithubUser (ghUser, ghUserRepos) {
+  if (ghUserRepos.length === 0) {
+    return noReposUser(ghUser)
+  }
+
+  return {
+    username: nonNullOrEmptyString(ghUser.login),
+    name: nonNullOrEmptyString(ghUser.name),
+    location: nonNullOrEmptyString(ghUser.location),
+    bio: nonNullOrEmptyString(ghUser.bio),
+    'avatar-url': nonNullOrEmptyString(ghUser.avatar_url),
+    titles: nonNullOrEmptyString(computeTitles(ghUser, ghUserRepos)),
+    'favorite-language': nonNullOrEmptyString(computeFavLanguage(ghUserRepos)),
+    'public-repos': nonNullOrEmptyString(ghUser.public_repos),
+    'total-stars': nonNullOrEmptyString(computeTotalStars(ghUserRepos)),
+    'most-starred': nonNullOrEmptyString(computeHighestStars(ghUserRepos)),
+    'perfect-repos': nonNullOrEmptyString(computePerfectRepos(ghUserRepos)),
+    followers: nonNullOrEmptyString(ghUser.followers),
+    following: nonNullOrEmptyString(ghUser.following)
+  }
+}
+
+const ghRequestErrorHandler = username => error => {
+  let returnObj = {}
+  if (error.response) {
+    // The request was made and the server responded with a status code
+    // that falls out of the range of 2xx
+    console.log(error.response.data)
+    console.log(error.response.status)
+    console.log(error.response.headers)
+    returnObj.status = error.response.status
+    returnObj.message = `Could not retrieve user data for "${username}"`
+  } else if (error.request) {
+    // The request was made but no response was received
+    // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+    // http.ClientRequest in node.js
+    console.log(error.request)
+    returnObj.status = 504
+    returnObj.message = 'Github is down'
+  } else {
+    // Something happened in setting up the request that triggered an Error
+    console.log('Error', error.message)
+    returnObj.status = 500
+    returnObj.message = `Server crashed while trying to get data for "${username}"`
+  }
+  console.log(error.config)
+  console.log(returnObj)
+  return returnObj
+}
+
+function requestUserData (username, res) {
   return Promise.all([
-    axios.get(`https://api.github.com/users/${username}`, {
-      headers: {
-        Authorization: token
-      }
-    }),
-    axios.get(`https://api.github.com/users/${username}/repos`, {
-      headers: {
-        Authorization: token
-      }
-    })
+    axios
+      .get(`https://api.github.com/users/${username}`, {
+        headers: {
+          Authorization: token
+        }
+      })
+      .catch(ghRequestErrorHandler(username)),
+    axios
+      .get(`https://api.github.com/users/${username}/repos`, {
+        headers: {
+          Authorization: token
+        }
+      })
+      .catch(ghRequestErrorHandler(username))
   ])
 }
 
@@ -143,35 +202,53 @@ export default () => {
   /** GET /api/user/:username - Get user */
   router.get('/user/:username', validate(validation.user), (req, res) => {
     requestUserData(req.params.username)
-      .then(responses =>
-        transformGithubUser(responses[0].data, responses[1].data)
-      )
-      .then(data => {
-        console.log(data)
-        return data
+      .then(responses => {
+        if (responses[0].status !== 200) {
+          throw responses[0]
+        }
+        return transformGithubUser(responses[0].data, responses[1].data)
       })
       .then(data => res.json(data))
-      .catch(console.log)
+      .catch(err => {
+        console.log(err)
+        res.status(err.status).send(err.message)
+      })
   })
 
   /** GET /api/users? - Get users */
   router.get('/users/', validate(validation.users), (req, res) => {
-    Promise.all(req.query.username.map(requestUserData))
-      .then(data => {
-        console.log(data)
-        return data
-      })
-      .then(responses =>
-        responses.map(response =>
-          transformGithubUser(response[0].data, response[1].data)
-        )
-      )
-      .then(data => {
-        console.log(data)
-        return data
+    Promise.all(req.query.username.map(name => requestUserData(name, res)))
+      .then(responses => {
+        let failed = false
+        let failures = {
+          status: 404,
+          message: ''
+        }
+
+        const usersResponse = responses.map(response => {
+          if (response[0].status !== 200) {
+            failed = true
+            failures.status = response[0].status
+            failures.message += ' ' + response[0].message
+            return {}
+          }
+
+          return transformGithubUser(response[0].data, response[1].data)
+        })
+
+        if (failed) {
+          throw failures
+        }
+
+        return usersResponse
       })
       .then(data => res.json(data))
-      .catch(console.log)
+      .catch(err => {
+        console.log(err)
+        res.status(err.status)
+        res.statusMessage = err.message
+        res.send()
+      })
   })
 
   return router

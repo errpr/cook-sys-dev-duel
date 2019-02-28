@@ -1,32 +1,26 @@
 /* eslint-disable no-undef */
-$('form').submit(() => {
-  const username = $('form input').val()
-  console.log(`examining ${username}`)
+document.querySelector('form').addEventListener('submit', event => {
+  event.preventDefault()
 
-  // Fetch data for given user
-  // (https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
+  const username = document.querySelector('form input').value
+  const userResults = document.querySelector('.user-results')
+  const errorSection = document.querySelector('.user-error')
+
   fetch(`${USER_URL}/${username}`)
-    .then(response => response.json()) // Returns parsed json data from response body as promise
+    .then(response => {
+      if (response.ok) {
+        return response.json()
+      }
+      throw new Error(response.statusText)
+    })
     .then(data => {
-      console.log(`Got data for ${username}`)
-      console.log(data)
-      /*
-        TODO
-        Attach the data returned to the DOM
-        The data currently hard-coded into the DOM is placeholder data
-       */
-
-      $('.user-results').removeClass('hide') // Display '.user-results' element
+      userResults.innerHTML = buildUserProfile(data)
+      userResults.classList.remove('hide')
+      errorSection.classList.add('hide')
     })
     .catch(err => {
-      console.log(`Error getting data for ${username}`)
-      console.log(err)
-      /*
-        TODO
-        If there is an error finding the user, instead toggle the display of the '.user-error' element
-        and populate it's inner span '.error' element with an appropriate error message
-      */
+      errorSection.innerHTML = err.message
+      userResults.classList.add('hide')
+      errorSection.classList.remove('hide')
     })
-
-  return false // return false to prevent default form submission
 })
