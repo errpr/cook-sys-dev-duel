@@ -69,6 +69,30 @@ span.username {
     color : red;
 }
 
-.overall-winner {
-    border: 2px solid green;
+.winner-container {
+    position: relative;
+    height: 0px;
+    width: 0px;
+}
+
+.winner-text {
+    position: absolute;
+    top: -3em;
+    right: -1.5em;
+    font-size: 22pt;
+    color: green;
+}
+
+.tie-container {
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: center;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.tie-text {
+    font-size: 22pt;
 }

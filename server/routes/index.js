@@ -142,7 +142,7 @@ const ghRequestErrorHandler = username => error => {
     console.log(error.response.status)
     console.log(error.response.headers)
     returnObj.status = error.response.status
-    returnObj.message = `Could not retrieve user data for "${username}"`
+    returnObj.message = `User not found: ${username}`
   } else if (error.request) {
     // The request was made but no response was received
     // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
@@ -154,7 +154,7 @@ const ghRequestErrorHandler = username => error => {
     // Something happened in setting up the request that triggered an Error
     console.log('Error', error.message)
     returnObj.status = 500
-    returnObj.message = `Server crashed while trying to get data for "${username}"`
+    returnObj.message = `Internal error while retrieving ${username}`
   }
   console.log(error.config)
   console.log(returnObj)

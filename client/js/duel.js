@@ -18,6 +18,8 @@ document.querySelector('form').addEventListener('submit', event => {
   const userSectionContainer = document.querySelector('.duel-container')
   const errorSection = document.querySelector('.duel-error')
 
+  document.querySelector('.tie-container').classList.add('hide')
+
   fetch(
     `${USERS_URL}?username=${usernameLeft.value}&username=${
       usernameRight.value
@@ -120,8 +122,20 @@ function applyStyles (winners, leftUserSection, rightUserSection) {
   })
 
   if (winners['overall-winner'] === 'left') {
-    leftUserSection.classList.add('overall-winner')
+    leftUserSection.prepend(winnerElement())
   } else if (winners['overall-winner'] === 'right') {
-    rightUserSection.classList.add('overall-winner')
+    rightUserSection.prepend(winnerElement())
+  } else {
+    document.querySelector('.tie-container').classList.remove('hide')
   }
+}
+
+function winnerElement () {
+  const outer = document.createElement('div')
+  outer.classList.add('winner-container')
+  const inner = document.createElement('p')
+  inner.classList.add('winner-text')
+  inner.innerText = 'Winner'
+  outer.appendChild(inner)
+  return outer
 }
